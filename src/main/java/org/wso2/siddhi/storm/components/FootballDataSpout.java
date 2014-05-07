@@ -1,9 +1,6 @@
 package org.wso2.siddhi.storm.components;
 
-import java.io.BufferedReader;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -34,7 +31,8 @@ public class FootballDataSpout extends BaseRichSpout {
 			SpoutOutputCollector collector) {
 		this._collector = collector;
 		try {
-			String fileName = "small-game4";
+			String fileName = "resources/small-game4";
+            System.out.println("File path: " + new File(fileName).getAbsolutePath());
 			reader = new BufferedReader(new FileReader(fileName),
 					10 * 1024 * 1024);
 		} catch (FileNotFoundException e) {
