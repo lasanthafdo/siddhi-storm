@@ -7,6 +7,7 @@ import backtype.storm.topology.TopologyBuilder;
 import org.wso2.siddhi.storm.components.EchoBolt;
 import org.wso2.siddhi.storm.components.FootballDataSpout;
 import org.wso2.siddhi.storm.components.SiddhiBolt;
+import org.wso2.siddhi.storm.components.StockDataSpout;
 
 /**
  * This topology demonstrates Storm's stream groupings and multilang capabilities.
@@ -34,7 +35,7 @@ public class StockDataTopology {
 
         TopologyBuilder builder = new TopologyBuilder();
 
-        builder.setSpout("StockData", new FootballDataSpout(), 2);
+        builder.setSpout("StockData", new StockDataSpout(), 2);
         builder.setBolt("AvgVolume", configureSiddhiBolt1(), 1).shuffleGrouping("StockData");
         builder.setBolt("LeafEcho", new EchoBolt(), 1).shuffleGrouping("AvgVolume");
 
