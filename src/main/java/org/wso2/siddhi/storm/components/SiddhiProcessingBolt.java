@@ -1,4 +1,4 @@
-package org.wso2.siddhi.storm.components.carbonized;
+package org.wso2.siddhi.storm.components;
 
 import backtype.storm.task.TopologyContext;
 import backtype.storm.topology.BasicOutputCollector;
@@ -14,57 +14,103 @@ import org.wso2.siddhi.core.stream.input.InputHandler;
 import org.wso2.siddhi.core.stream.output.StreamCallback;
 import org.wso2.siddhi.query.api.definition.Attribute;
 import org.wso2.siddhi.query.api.definition.StreamDefinition;
+import org.wso2.siddhi.query.api.query.Query;
+import org.wso2.siddhi.storm.exception.StormConfigurationException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-public class SiddhiReliableBolt extends BaseBasicBolt {
-    private static transient Logger log = Logger.getLogger(SiddhiReliableBolt.class);
+public class SiddhiProcessingBolt extends BaseBasicBolt {
+    private static transient Logger log = Logger.getLogger(SiddhiProcessingBolt.class);
     private transient SiddhiManager siddhiManager;
-    private String[] exportedStreams;
+    private String queryRef;
+    //TODO some of these members can be made final
+    private int tenantId;
+    private String importedTopLevelStreamId;
+    private String inputSiddhiStreamId;
+    private String[] outputSiddhiStreamIds;
     private BasicOutputCollector collector;
-    private String executionPlan;
-    private boolean useDefaultAsStreamName = true;
+    private boolean useDefaultAsStreamName = false;
     private String componentID;
 
-    public SiddhiReliableBolt() {
+    public SiddhiProcessingBolt() throws StormConfigurationException {
         init();
     }
 
-    public SiddhiReliableBolt(String executionPlan, InputHandler inputHandler, String[] exportedStreams) {
-        this.executionPlan = executionPlan;
-        this.exportedStreams = exportedStreams;
+    public SiddhiProcessingBolt(String queryRef, String inputSiddhiStreamId, String[] outputSiddhiStreamIds, String importedTopLevelStreamId) throws StormConfigurationException {
+        this.importedTopLevelStreamId = importedTopLevelStreamId;
+        this.queryRef = queryRef;
+        this.inputSiddhiStreamId = inputSiddhiStreamId;
+        this.outputSiddhiStreamIds = outputSiddhiStreamIds;
         init();
     }
 
-    public void init() {
+    public String[] getOutputSiddhiStreamIds() {
+        return outputSiddhiStreamIds;
+    }
+
+    public String getImportedTopLevelStreamId() {
+        return importedTopLevelStreamId;
+    }
+
+    public String getInputSiddhiStreamId() {
+        return inputSiddhiStreamId;
+    }
+
+    public void init() throws StormConfigurationException {
         SiddhiConfiguration configuration = new SiddhiConfiguration();
         SiddhiManager siddhiManager = new SiddhiManager(configuration);
-
-        if(this.executionPlan != null) {
-            siddhiManager.addExecutionPlan(executionPlan);
+        if (this.inputSiddhiStreamId != null) {
+            StreamDefinition inputSiddhiStreamDef = siddhiManager.getStreamDefinition(inputSiddhiStreamId);
+            if (inputSiddhiStreamDef != null) {
+                siddhiManager.defineStream(inputSiddhiStreamDef);
+            } else {
+                throw new StormConfigurationException("Could not find stream definition for stream with id: " + inputSiddhiStreamId);
+            }
         }
+        if (this.queryRef != null) {
+            Query query = siddhiManager.getQuery(queryRef);
+            if (query != null) {
+                siddhiManager.addQuery(query);
+            } else {
+                throw new StormConfigurationException("Could not find query for reference: " + queryRef);
+            }
+        }
+/*
+        if (this.outputEventJunctions == null) {
+            this.outputEventJunctions = new ArrayList<EventJunction>();
+            for (String streamId : outputSiddhiStreamIds) {
+                EventJunction eventJunction = StormProcessorValueHolder.getStormProcessorService().getEventJunction(streamId, tenantId);
+                if (eventJunction != null) {
+                    outputEventJunctions.add(eventJunction);
+                } else {
+                    log.warn("Could not find event junction for stream :" + streamId + " [" + this.componentID + "]");
+                }
+            }
+        }
+*/
+
         this.siddhiManager = siddhiManager;
-        for (final String streamId : exportedStreams) {
+        for (final String streamId : outputSiddhiStreamIds) {
             siddhiManager.addCallback(streamId, new StreamCallback() {
                 @Override
                 public void receive(Event[] events) {
                     for (Event event : events) {
                         List<Object> asList = Arrays.asList(event.getData());
-                        log.debug(componentID + ">Siddhi: Emit Event " + event);
+                        if (log.isDebugEnabled()) {
+                            log.debug(componentID + ">Siddhi: Emit Event " + event);
+                        }
                         if (useDefaultAsStreamName) {
                             getCollector().emit(asList);
                         } else {
                             getCollector().emit(streamId, asList);
                         }
-
                     }
                 }
             });
         }
-
     }
 
     @Override
@@ -81,7 +127,11 @@ public class SiddhiReliableBolt extends BaseBasicBolt {
             this.collector = collector;
             if (siddhiManager == null) {
                 //Bolt get saved and reloaded, this handle that condition
-                init();
+                try {
+                    init();
+                } catch (StormConfigurationException e) {
+                    log.error("Error when trying to re-initialize this bolt:" + e.getMessage(), e);
+                }
             }
 
             InputHandler inputHandler = siddhiManager.getInputHandler(streamID);
@@ -92,7 +142,9 @@ public class SiddhiReliableBolt extends BaseBasicBolt {
                 inputHandler = siddhiManager.getInputHandler(tuple.getSourceComponent());
             }
             if (inputHandler != null) {
-                log.debug(componentID + ">Siddhi: Received Event " + tuple);
+                if (log.isDebugEnabled()) {
+                    log.debug(componentID + ">Siddhi: Received Event " + tuple);
+                }
                 inputHandler.send(tuple.getValues().toArray());
             } else {
                 throw new RuntimeException("Input handler for stream " + streamID + " not found");
@@ -106,12 +158,16 @@ public class SiddhiReliableBolt extends BaseBasicBolt {
     @Override
     public void declareOutputFields(OutputFieldsDeclarer declarer) {
         if (siddhiManager == null) {
-            init();
+            try {
+                init();
+            } catch (StormConfigurationException e) {
+                log.error("Error trying to re-initialize this bolt: " + e.getMessage(), e);
+            }
         }
 
-        boolean useDefault = (exportedStreams.length == 1) && useDefaultAsStreamName;
+        boolean useDefault = (outputSiddhiStreamIds.length == 1) && useDefaultAsStreamName;
 
-        for (String streamId : exportedStreams) {
+        for (String streamId : outputSiddhiStreamIds) {
             StreamDefinition streamDefinition = siddhiManager.getStreamDefinition(streamId);
             if (streamDefinition == null) {
                 throw new RuntimeException("Cannot find stream " + streamId + " " + this);
@@ -146,11 +202,10 @@ public class SiddhiReliableBolt extends BaseBasicBolt {
      * When this is true and there is only one stream to expose, Siddhi bolt will export the resulting stream as default.
      * This set to true by default.
      *
-     * @param useDefaultAsStreamName
+     * @param useDefaultAsStreamName set to {@code true} to use default stream.
      */
     public void setUseDefaultAsStreamName(boolean useDefaultAsStreamName) {
         this.useDefaultAsStreamName = useDefaultAsStreamName;
     }
-
 
 }

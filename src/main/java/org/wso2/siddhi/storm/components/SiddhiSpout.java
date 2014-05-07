@@ -15,7 +15,7 @@
  */
 
 
-package org.wso2.siddhi.storm.components.carbonized;
+package org.wso2.siddhi.storm.components;
 
 import backtype.storm.spout.SpoutOutputCollector;
 import backtype.storm.task.TopologyContext;
@@ -24,13 +24,10 @@ import backtype.storm.topology.base.BaseRichSpout;
 import backtype.storm.tuple.Fields;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.wso2.carbon.context.PrivilegedCarbonContext;
-import org.wso2.carbon.event.processor.storm.QueuedEventSource;
-import org.wso2.carbon.event.processor.storm.internal.ds.StormProcessorValueHolder;
-import org.wso2.carbon.event.processor.storm.internal.stream.EventConsumer;
-import org.wso2.carbon.event.processor.storm.internal.stream.EventJunction;
 import org.wso2.siddhi.query.api.definition.Attribute;
 import org.wso2.siddhi.query.api.definition.StreamDefinition;
+import org.wso2.siddhi.storm.ConsumingQueuedEventSource;
+import org.wso2.siddhi.storm.QueuedEventSource;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -39,19 +36,15 @@ import java.util.Map;
 
 public class SiddhiSpout extends BaseRichSpout {
     private static transient Log log = LogFactory.getLog(SiddhiSpout.class);
-    private final int tenantId;
     private transient QueuedEventSource inputEventSource;
     private SpoutOutputCollector _collector;
     private List<String> attributeNames;
-    private String exportedSiddhiStreamId;
-    private String exportedTopLevelStreamId;
+    private StreamDefinition exportedSiddhiStreamDef;
     private boolean useDefaultAsStreamName = false;
 
-    public SiddhiSpout(StreamDefinition siddhiStreamDefinition, QueuedEventSource inputEventSource, String topLevelStreamId) {
-        this.tenantId = PrivilegedCarbonContext.getThreadLocalCarbonContext().getTenantId();
+    public SiddhiSpout(StreamDefinition siddhiStreamDefinition, QueuedEventSource inputEventSource) {
         this.inputEventSource = inputEventSource;
-        this.exportedSiddhiStreamId = siddhiStreamDefinition.getStreamId();
-        this.exportedTopLevelStreamId = topLevelStreamId;
+        this.exportedSiddhiStreamDef = siddhiStreamDefinition;
         List<Attribute> attributeList = siddhiStreamDefinition.getAttributeList();
         this.attributeNames = new ArrayList<String>(attributeList.size());
         for (Attribute attribute : attributeList) {
@@ -59,19 +52,13 @@ public class SiddhiSpout extends BaseRichSpout {
         }
     }
 
-    public String getExportedSiddhiStreamId() {
-        return exportedSiddhiStreamId;
+    public StreamDefinition getExportedSiddhiStreamDef() {
+        return exportedSiddhiStreamDef;
     }
 
     public QueuedEventSource getInputEventSource() {
         if (inputEventSource == null) {
-            EventJunction eventJunction = StormProcessorValueHolder.getStormProcessorService().getEventJunction(exportedTopLevelStreamId, tenantId);
-            for (EventConsumer eventConsumer : eventJunction.getAllEventConsumers()) {
-                if (eventConsumer instanceof QueuedEventSource) {
-                    this.inputEventSource = (QueuedEventSource) eventConsumer;
-                    break;
-                }
-            }
+            inputEventSource = new ConsumingQueuedEventSource(exportedSiddhiStreamDef);
         }
         return inputEventSource;
     }
@@ -89,7 +76,7 @@ public class SiddhiSpout extends BaseRichSpout {
         if (useDefaultAsStreamName) {
             declarer.declare(new Fields(attributeNames));
         } else {
-            declarer.declareStream(exportedSiddhiStreamId, new Fields(attributeNames));
+            declarer.declareStream(exportedSiddhiStreamDef.getStreamId(), new Fields(attributeNames));
         }
     }
 
@@ -106,13 +93,13 @@ public class SiddhiSpout extends BaseRichSpout {
                 if (useDefaultAsStreamName) {
                     _collector.emit(Arrays.asList(nextEvent));
                 } else {
-                    _collector.emit(exportedSiddhiStreamId, Arrays.asList(nextEvent));
+                    _collector.emit(exportedSiddhiStreamDef.getStreamId(), Arrays.asList(nextEvent));
                 }
             } else {
                 Thread.sleep(100);
             }
         } catch (InterruptedException e) {
-            log.error("Thread interrupted while sleeping as a matter of courtesy for stream : " + exportedSiddhiStreamId, e);
+            log.error("Thread interrupted while sleeping as a matter of courtesy for stream : " + exportedSiddhiStreamDef, e);
         }
     }
 

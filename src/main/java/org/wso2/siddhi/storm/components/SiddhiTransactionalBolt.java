@@ -1,4 +1,4 @@
-package org.wso2.siddhi.storm.components.carbonized;
+package org.wso2.siddhi.storm.components;
 
 import backtype.storm.coordination.BatchOutputCollector;
 import backtype.storm.task.TopologyContext;

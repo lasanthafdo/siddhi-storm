@@ -3,11 +3,11 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<groupId>org.wso2.siddhi</groupId>
-	<artifactId>siddhi-storm-bolt</artifactId>
+	<artifactId>siddhi-storm</artifactId>
 	<version>1.0.0-SNAPSHOT</version>
 	<packaging>jar</packaging>
 
-	<name>siddhi-storm-bolt</name>
+	<name>siddhi-storm</name>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
