@@ -6,7 +6,8 @@ import backtype.storm.topology.OutputFieldsDeclarer;
 import backtype.storm.topology.base.BaseRichSpout;
 import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Values;
-import org.apache.log4j.Logger;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -16,7 +17,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 
 public class StockDataSpout extends BaseRichSpout {
     private static final int EVENT_SIZE = 1000000;
-    private transient Logger log = Logger.getLogger(StockDataSpout.class);
+    private transient Log log = LogFactory.getLog(StockDataSpout.class);
     private SpoutOutputCollector _collector;
     private boolean useDefaultAsStreamName = true;
     private String[] stockSymbols = new String[]{

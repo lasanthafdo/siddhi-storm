@@ -18,7 +18,7 @@ public class StockDataTopology {
     private static SiddhiBolt configureSiddhiBolt1() {
         SiddhiBolt siddhiBolt = new SiddhiBolt(
                 new String[]{"define stream StockData ( symbol string, price double, volume int);"},
-                new String[]{"from StockData#window.timeBatch(1sec) select symbol, price, avg(volume) as avgV insert into AvgVolume;"},
+                new String[]{"from StockData#window.time(1sec) select symbol, price, avg(volume) as avgV group by symbol insert into AvgVolume;"},
                 new String[]{"AvgVolume"});
         return siddhiBolt;
     }
@@ -35,7 +35,7 @@ public class StockDataTopology {
 
         TopologyBuilder builder = new TopologyBuilder();
 
-        builder.setSpout("StockData", new StockDataSpout(), 2);
+        builder.setSpout("StockData", new StockDataSpout(), 1);
         builder.setBolt("AvgVolume", configureSiddhiBolt1(), 1).shuffleGrouping("StockData");
         builder.setBolt("LeafEcho", new EchoBolt(), 1).shuffleGrouping("AvgVolume");
 
