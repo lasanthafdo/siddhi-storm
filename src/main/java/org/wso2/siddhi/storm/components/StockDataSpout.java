@@ -8,10 +8,7 @@ import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Values;
 import org.apache.log4j.Logger;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Queue;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 
 public class StockDataSpout extends BaseRichSpout {
@@ -20,11 +17,13 @@ public class StockDataSpout extends BaseRichSpout {
     private SpoutOutputCollector _collector;
     private boolean useDefaultAsStreamName = true;
     private String[] stockSymbols = new String[]{
-            "WSO2", "FB", "GOOG", "LNKD", "AMD", "DDD"
+            "WSO2", "FB", "GOOG", "LNKD", "AMD", "NVIDIA", "APPL", "YAHOO", "INTEL", "SAMSUNG"
     };
     private Map<String, Double> stockPrices = new HashMap<String, Double>();
     private Map<String, Integer> stockVolumes = new HashMap<String, Integer>();
-    private Queue<Object[]> eventQueue = new ArrayBlockingQueue<Object[]>(EVENT_SIZE);
+    private List<Object[]> eventQueue = new ArrayList<Object[]>(EVENT_SIZE);
+
+    int nextIndex = 0;
 
     @Override
     public void declareOutputFields(OutputFieldsDeclarer declarer) {
@@ -53,24 +52,21 @@ public class StockDataSpout extends BaseRichSpout {
         }
     }
 
+
     @Override
     public void nextTuple() {
-        Object[] data = eventQueue.poll();
-        if (data != null) {
-            if (useDefaultAsStreamName) {
-                _collector.emit(new Values(data));
-            } else {
-                _collector.emit("StockData", new Values(data));
-            }
+        Object[] data = eventQueue.get(nextIndex);
+        if (useDefaultAsStreamName) {
+            _collector.emit(new Values(data));
         } else {
-            try {
-                generateNextEvents(EVENT_SIZE);
-                Thread.sleep(5000);
-            } catch (InterruptedException e) {
-                log.error("Thread interrupted : " + e.getMessage());
-            }
+            _collector.emit("StockData", new Values(data));
+        }
+        nextIndex++;
+        if (nextIndex == EVENT_SIZE){
+            nextIndex = 0;
         }
     }
+
 
     private void generateNextEvents(int size) throws InterruptedException {
         for (int i = 0; i < size; i++) {
@@ -91,5 +87,4 @@ public class StockDataSpout extends BaseRichSpout {
             }
         }
     }
-
 }
