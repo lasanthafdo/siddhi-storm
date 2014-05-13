@@ -29,7 +29,10 @@ public class SiddhiBolt extends BaseBasicBolt{
 	private String[] definitions; 
 	private String[] queries;
 	private boolean useDefaultAsStreamName = true; 
-	private String componentID; 
+	private String componentID;
+    private long messageCount = 0;
+    private long startTime = System.currentTimeMillis();
+    public static long MEESAGE_COUNT = 100000;
 	
 	public void init(){
 		SiddhiConfiguration configuration = new SiddhiConfiguration();
@@ -46,13 +49,15 @@ public class SiddhiBolt extends BaseBasicBolt{
         		}
         	}
         }
+
         if(queries != null){
         	for(String def: queries){
         		siddhiManager.addQuery(def); 
         	}
         }
         this.siddhiManager = siddhiManager;
-		for(final String streamId:  exportedStreams){
+
+        for(final String streamId:  exportedStreams){
 			siddhiManager.addCallback(streamId, new StreamCallback() {
 				@Override
 				public void receive(Event[] events) {
@@ -64,13 +69,22 @@ public class SiddhiBolt extends BaseBasicBolt{
 						}else{
 							getCollector().emit(streamId, asList);
 						}
-						
 					}
+                    CalculateThroughput();
 				}
 			});
 		}
 
 	}
+
+    private void CalculateThroughput(){
+        messageCount++;
+        if (messageCount % MEESAGE_COUNT == 0){
+            long now = System.currentTimeMillis();
+            log.info("Throughput["+ messageCount + "] : " + MEESAGE_COUNT/(now - startTime)*1000 + " msg/s");
+            startTime = now;
+        }
+    }
 	
 	public SiddhiBolt(){
 		init();
@@ -122,7 +136,6 @@ public class SiddhiBolt extends BaseBasicBolt{
 	}
 
 	@Override
-	
 	public void declareOutputFields(OutputFieldsDeclarer declarer) {
 		if(siddhiManager == null){
 			init();
